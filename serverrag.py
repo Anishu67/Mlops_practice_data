@@ -59,7 +59,7 @@ def login(data : LoginRequest):
 #rag initiation
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-raw_text = load_pdf_text("sample_policy.pdf")
+raw_text = load_pdf_text("sample_policy1.pdf")
 chunks = chunk_text(raw_text)
 
 embedding = embedding_model.encode(chunks)
