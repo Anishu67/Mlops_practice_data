@@ -20,6 +20,12 @@ SECRET_KEY = "your_secret_key"
 EXPIRE_IN_MINUTES = 30
 ALGORITHM = "HS256"
 
+# ================= GLOBAL RAG STATE =================
+embedding_model = None
+faiss_index = None
+chunks = []
+
+
 class LoginRequest(BaseModel):
     username : str
     password : str  
@@ -55,73 +61,94 @@ def login(data : LoginRequest):
     raise HTTPException(
         status_code= 401,
         detail = "Invalid credentials"
+
     )
-#rag initiation
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-raw_text = load_pdf_text("sample_policy1.pdf")
-chunks = chunk_text(raw_text)
 
-embedding = embedding_model.encode(chunks)
-embedding = np.array(embedding).astype("float32")
+# ================= STARTUP EVENT =================
 
-index = faiss.IndexFlatL2(embedding.shape[1])
-index.add(embedding)
+@app.on_event("startup")
+def startup_rag():
+    global embedding_model, faiss_index, chunks
+    
+    try:
+        print("🔄 Initializing RAG pipeline...")
 
-def ask_rag(question:str) ->str:
+
+ # Load embedding model
+        embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+        # Load & process PDF
+        raw_text = load_pdf_text("sample_policy1.pdf")
+        chunks = chunk_text(raw_text)
+
+        # Create embeddings
+        embeddings = embedding_model.encode(chunks)
+        embeddings = np.array(embeddings).astype("float32")
+
+        # Build FAISS index
+        faiss_index = faiss.IndexFlatL2(embeddings.shape[1])
+        faiss_index.add(embeddings)
+
+        print("✅ RAG pipeline initialized successfully")
+
+    except Exception as e:
+        print("❌ RAG initialization failed:", str(e))
+        faiss_index = None
+        embedding_model = None
+        chunks = []
+
+        
+def ask_rag(question: str) -> str:
+    if embedding_model is None or faiss_index is None:
+        return "RAG system not ready"
+
     query_embedding = embedding_model.encode([question])
+    query_embedding = np.array(query_embedding).astype("float32")
+
     k = 3
-    distance, indices = index.search(np.array(query_embedding).astype("float32"), k = k)
-    retrieve_doc = [chunks[i] for i in indices[0]]
-    context = "\n".join(retrieve_doc)
+    _, indices = faiss_index.search(query_embedding, k)
+
+    retrieved_docs = [chunks[i] for i in indices[0]]
+    context = "\n".join(retrieved_docs)
 
     prompt = f"""
 You are a strict question answering system.
 
 Rules:
 - Use ONLY the information present in the context.
-- Do NOT add extra explanations.
-- Do NOT invent policies, companies, or laws.
-- If the answer is present, respond in ONE short sentence.
-- If the answer is NOT present, respond exactly with: I don't know.
+- Do NOT guess or hallucinate.
+- If answer is not present, say: I don't know.
 
-context :
+Context:
 {context}
 
-question :
+Question:
 {question}
-
 """
-    
-    response = requests.post(
-         "http://localhost:11434/api/generate",
-        json = {
-            "model":"phi3:mini",
-            "prompt":prompt,
-            "stream" : False
-        }
 
+    response = requests.post(
+        "http://localhost:11434/api/generate",
+        json={
+            "model": "phi3:mini",
+            "prompt": prompt,
+            "stream": False
+        },
+        timeout=30
     )
 
+    return response.json().get("response", "I don't know")
 
-    data = response.json()
-    if "response" in data:
-        return data["response"]
-    else:
-        raise HTTPException(status_code=500, detail=data)
+# ================= CHAT API =================
 
 @app.post("/chat")
-
 def chat(
-    data:ChatRequest,
-    user : str = Depends(get_current_user)
+    data: ChatRequest,
+    user: str = Depends(get_current_user)
 ):
-
     answer = ask_rag(data.question)
-
-    return{
+    return {
         "user": user,
         "question": data.question,
         "answer": answer
-
     }
