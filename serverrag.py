@@ -134,7 +134,7 @@ Question:
             "prompt": prompt,
             "stream": False
         },
-        timeout=30
+        timeout=60
     )
 
     return response.json().get("response", "I don't know")
