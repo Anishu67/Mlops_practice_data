@@ -4,6 +4,9 @@ from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from pydantic import BaseModel
 
+import mlflow
+import time
+
 from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
@@ -19,6 +22,8 @@ security = HTTPBearer()
 SECRET_KEY = "your_secret_key"
 EXPIRE_IN_MINUTES = 30
 ALGORITHM = "HS256"
+
+mlflow.set_experiment("rag_inference")
 
 # ================= GLOBAL RAG STATE =================
 embedding_model = None
@@ -101,6 +106,7 @@ def startup_rag():
         
 def ask_rag(question: str) -> str:
     if embedding_model is None or faiss_index is None:
+        mlflow.log_metrics("error",1)
         return "RAG system not ready"
 
     query_embedding = embedding_model.encode([question])
@@ -111,6 +117,9 @@ def ask_rag(question: str) -> str:
 
     retrieved_docs = [chunks[i] for i in indices[0]]
     context = "\n".join(retrieved_docs)
+
+    #LOG RETRIEVEL METRIC
+    mlflow.log_metric("retrieved_docs",len(retrieved_docs))
 
     prompt = f"""
 You are a strict question answering system.
@@ -137,7 +146,7 @@ Question:
         timeout=60
     )
 
-    return response.json().get("response", "I don't know")
+    return response.json().get("response", "I don't know"), len(retrieved_docs)
 
 # ================= CHAT API =================
 
@@ -146,9 +155,28 @@ def chat(
     data: ChatRequest,
     user: str = Depends(get_current_user)
 ):
-    answer = ask_rag(data.question)
-    return {
-        "user": user,
-        "question": data.question,
-        "answer": answer
-    }
+    start_time = time.time()
+    with mlflow.start_run():
+        mlflow.log_param("embedding_model","all-MiniLM-L6-v2")
+        mlflow.log_param("vector_db","faiss")
+        mlflow.log_param("llm_model","phi3:mini")
+        mlflow.log_param("top_k",3)
+        mlflow.log_param("prompt_version","v1")
+
+        try:
+
+
+            answer, retrieved_count = ask_rag(data.question)
+            latency_ms = int((time.time() - start_time)*1000)
+            mlflow.log_metric("latency_ms", latency_ms)
+            mlflow.log_metric("error",0)
+
+            return {
+
+                "user": user,
+                "question": data.question,
+                "answer": answer
+            }
+        except Exception as e :
+            mlflow.log_metric("error",1)
+            raise e
