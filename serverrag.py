@@ -145,8 +145,9 @@ Question:
         },
         timeout=60
     )
-
-    return response.json().get("response", "I don't know"), len(retrieved_docs)
+    
+    answer = response.json().get("response","I Dont Know")
+    return answer,len(retrieved_docs), prompt, context
 
 # ================= CHAT API =================
 
@@ -166,9 +167,12 @@ def chat(
         try:
 
 
-            answer, retrieved_count = ask_rag(data.question)
+            answer, retrieved_count, prompt, context = ask_rag(data.question)
             latency_ms = int((time.time() - start_time)*1000)
             mlflow.log_metric("latency_ms", latency_ms)
+            mlflow.log_text(prompt,"prompt.txt")
+            mlflow.log_text(context,"context.txt")
+            mlflow.log_text(answer,"answer.txt")
             mlflow.log_metric("error",0)
 
             return {
