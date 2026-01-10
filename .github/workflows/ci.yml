@@ -31,8 +31,15 @@ jobs :
 
     - name: Start FastAPI server
       run: |
-        python -m uvicorn serverrag:app --host 127.0.0.1 --port 8000 &
-        sleep 10
+        python -m uvicorn serverrag:app --host 0.0.0.0 --port 8000 &
+        echo "Waiting for FastAPI to be ready..."
+        for i in {1..30}; do
+          if curl -s http://127.0.0.1:8000/health; then
+            echo "FastAPI is up!"
+            break
+          fi
+          sleep 2
+        done
 
     - name: Call /chat endpoint (ML validation)
       run: |
@@ -46,3 +53,4 @@ jobs :
           -H "Authorization: Bearer '$TOKEN'" \
           -H "Content-Type: application/json" \
           -d '{"question":"What is this policy about?"}'
+          
