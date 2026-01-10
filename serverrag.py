@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from pydantic import BaseModel
+import os
 
 import mlflow
 import time
@@ -85,6 +86,9 @@ def login(data : LoginRequest):
 @app.on_event("startup")
 def startup_rag():
     global embedding_model, faiss_index, chunks
+    if os.getenv("CI") == "true":
+        print("⚠️ CI mode detected — skipping RAG initialization")
+        return
     
     try:
         print("🔄 Initializing RAG pipeline...")
