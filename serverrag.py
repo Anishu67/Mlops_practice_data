@@ -22,7 +22,12 @@ security = HTTPBearer()
 SECRET_KEY = "your_secret_key"
 EXPIRE_IN_MINUTES = 30
 ALGORITHM = "HS256"
-
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+VECTOR_DB = "faiss"
+LLM_MODEL = "phi3:mini"
+TOP_K = 2
+PROMPT_VERSION = "v1"
+SOURCE_FILE = "sample_policy1.pdf"
 mlflow.set_experiment("rag_inference")
 
 # ================= GLOBAL RAG STATE =================
@@ -111,18 +116,15 @@ def ask_rag(question: str) -> str:
 
     query_embedding = embedding_model.encode([question])
     query_embedding = np.array(query_embedding).astype("float32")
-
-    k = 3
+    k = TOP_K
     _, indices = faiss_index.search(query_embedding, k)
-
+    
     retrieved_docs = [chunks[i] for i in indices[0]]
     context = "\n".join(retrieved_docs)
-
-    #LOG RETRIEVEL METRIC
-    mlflow.log_metric("retrieved_docs",len(retrieved_docs))
-
-    prompt = f"""
+    mlflow.log_metric("retrieved_doc",len(retrieved_docs))
+    prompt = f"""   
 You are a strict question answering system.
+(prompt version = {PROMPT_VERSION})
 
 Rules:
 - Use ONLY the information present in the context.
@@ -139,7 +141,7 @@ Question:
     response = requests.post(
         "http://localhost:11434/api/generate",
         json={
-            "model": "phi3:mini",
+            "model": LLM_MODEL,
             "prompt": prompt,
             "stream": False
         },
@@ -158,11 +160,21 @@ def chat(
 ):
     start_time = time.time()
     with mlflow.start_run():
-        mlflow.log_param("embedding_model","all-MiniLM-L6-v2")
-        mlflow.log_param("vector_db","faiss")
-        mlflow.log_param("llm_model","phi3:mini")
-        mlflow.log_param("top_k",3)
-        mlflow.log_param("prompt_version","v1")
+        config = {
+            "embedding_model": EMBEDDING_MODEL,
+            "vector_db": VECTOR_DB,
+            "top_k": TOP_K,
+            "llm_model": LLM_MODEL,
+            "prompt_version": PROMPT_VERSION,
+            "source_file": SOURCE_FILE,
+            "chunk_strategy": "fixed"
+        }
+        mlflow.log_dict(config,"config.json")
+        mlflow.log_param("embedding_model",EMBEDDING_MODEL)
+        mlflow.log_param("vector_db",VECTOR_DB)
+        mlflow.log_param("llm_model",LLM_MODEL)
+        mlflow.log_param("top_k",TOP_K)
+        mlflow.log_param("prompt_version",PROMPT_VERSION)
 
         try:
 
@@ -170,6 +182,7 @@ def chat(
             answer, retrieved_count, prompt, context = ask_rag(data.question)
             latency_ms = int((time.time() - start_time)*1000)
             mlflow.log_metric("latency_ms", latency_ms)
+            mlflow.log_metric("retreived_docs", retrieved_count)
             mlflow.log_text(prompt,"prompt.txt")
             mlflow.log_text(context,"context.txt")
             mlflow.log_text(answer,"answer.txt")

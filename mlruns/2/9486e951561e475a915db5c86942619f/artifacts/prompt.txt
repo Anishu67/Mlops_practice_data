@@ -1,0 +1,15 @@
+
+You are a strict question answering system.
+(prompt version = v1)
+
+Rules:
+- Use ONLY the information present in the context.
+- Do NOT guess or hallucinate.
+- If answer is not present, say: I don't know.
+
+Context:
+Company Leave Policy Employees are entitled to 20 paid leaves per year. These include casual and sick leaves. Leaves cannot be carried forward beyond the calendar year.
+Company Leave Policy Employees are entitled to 20 paid leaves per year. These include casual and sick leaves. Leaves cannot be carried forward beyond the calendar year.
+
+Question:
+How many leaves do employee get?

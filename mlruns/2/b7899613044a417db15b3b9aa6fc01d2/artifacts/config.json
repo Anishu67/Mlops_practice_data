@@ -1,0 +1,9 @@
+{
+  "embedding_model": "all-MiniLM-L6-v2",
+  "vector_db": "faiss",
+  "top_k": 2,
+  "llm_model": "phi3:mini",
+  "prompt_version": "v1",
+  "source_file": "sample_policy1.pdf",
+  "chunk_strategy": "fixed"
+}
