@@ -38,7 +38,7 @@ jobs :
       run: |
         curl -X POST http://127.0.0.1:8000/login \
           -H "Content-Type: application/json" \
-          -d '{"username":"abc","password":"abc123"}' > token.json
+          -d '{"username":"admin","password":"admin123"}' > token.json
 
         TOKEN=$(cat token.json | jq -r '.access_token')
 
