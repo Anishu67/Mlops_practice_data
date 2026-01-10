@@ -6,3 +6,4 @@ mlflow
 python-jose
 requests
 numpy
+pydantic
