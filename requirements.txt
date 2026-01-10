@@ -7,3 +7,4 @@ python-jose
 requests
 numpy
 pydantic
+pypdf
