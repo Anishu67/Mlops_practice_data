@@ -18,6 +18,11 @@ from chunker import chunk_text
 app = FastAPI()
 security = HTTPBearer()
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 #CONFIG
 SECRET_KEY = "your_secret_key"
 EXPIRE_IN_MINUTES = 30
